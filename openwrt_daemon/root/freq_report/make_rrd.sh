@@ -1,0 +1,22 @@
+#!/bin/sh
+rrdtool create /root/freq_report/freq.rrd \
+	--step '10' \
+	'DS:freq:GAUGE:15:40:70' \
+	'RRA:MIN:0.8:1:8640' \
+	'RRA:AVERAGE:0.9:1:8640' \
+	'RRA:MAX:0.9:1:8640' \
+	'RRA:MIN:0.5:12:5040' \
+	'RRA:AVERAGE:0.5:12:5040' \
+	'RRA:MAX:0.5:12:5040' \
+	'RRA:MIN:0.5:30:8928' \
+	'RRA:AVERAGE:0.5:30:8928' \
+	'RRA:MAX:0.5:30:8928' \
+	'RRA:MIN:0.5:90:8832' \
+	'RRA:AVERAGE:0.5:90:8832' \
+	'RRA:MAX:0.5:90:8832' \
+	'RRA:MIN:0.5:360:8760' \
+	'RRA:AVERAGE:0.5:360:8760' \
+	'RRA:MAX:0.5:360:8760' \
+	'RRA:MIN:0.5:4320:7300' \
+	'RRA:AVERAGE:0.5:4320:7300' \
+	'RRA:MAX:0.5:4320:7300'

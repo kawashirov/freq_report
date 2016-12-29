@@ -1,0 +1,16 @@
+#!/bin/sh /etc/rc.common
+
+START=80
+
+SERVICE_DAEMONIZE=1
+SERVICE_WRITE_PID=1
+SERVICE_PID_FILE=/var/freq_report.pid
+SERVICE_MATCH_EXEC=''
+
+start() {
+	service_start /root/freq_report/service.sh
+}
+
+stop() {
+	service_stop /root/freq_report/service.sh
+}
