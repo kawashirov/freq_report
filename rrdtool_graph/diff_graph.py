@@ -17,28 +17,30 @@ class DiffGraph(FloatingPeriodGraph):
 			'VDEF:g_min=r_min,{},PERCENTNAN'.format(self.arg_error),
 			'VDEF:g_max=r_max,{},PERCENTNAN'.format(100 - self.arg_error),
 			
-			cdef_fit('f_min', 'r_min', 'g_min', 'g_max'),
-			cdef_fit('f_max', 'r_max', 'g_min', 'g_max'),
-			cdef_fit('f_avg', 'r_avg', 'g_min', 'g_max'),
+			# cdef_drop('f_min', 'r_min', 'g_min', 'g_max'),
+			# cdef_drop('f_max', 'r_max', 'g_min', 'g_max'),
+			cdef_drop('f_avg', 'r_avg', 'g_min', 'g_max'),
 
-			'CDEF:r_diff=f_avg,PREV(f_avg),-',
-			'VDEF:g_diff_min=r_diff,MINIMUM',
-			'VDEF:g_diff_max=r_diff,MAXIMUM',
+			'CDEF:r_diff=r_avg,PREV(r_avg),-',
+			'CDEF:f_diff=f_avg,PREV(f_avg),-',
+			'VDEF:g_diff_min=f_diff,MINIMUM',
+			'VDEF:g_diff_max=f_diff,MAXIMUM',
 
-			cdef_trend('t_diff', 'r_diff', trend_window),
-			'VDEF:g_last=r_diff,LAST',
-			'VDEF:g_stdev=r_diff,STDEV',
+			cdef_trend('t_diff', 'f_diff', trend_window),
+			'VDEF:g_last=f_diff,LAST',
+			'VDEF:g_stdev=f_diff,STDEV',
 
-			'CDEF:e_avg_min=r_min,f_min,LT',
-			'CDEF:e_avg_max=r_max,f_max,GT',
-			'CDEF:missing=r_avg,UN',
+			'CDEF:e_avg_min=r_min,g_min,LT',
+			'CDEF:e_avg_max=r_max,g_max,GT',
+			'CDEF:e_miss=r_avg,UN',
 			cdef_0tick('ztick', period, 'r_avg'),
 
 			'TEXTALIGN:left',
 
 			comment('Маркеры:'),
 			tick('ztick', '#FFFF00', fraction=1),
-			tick('missing', '#770077', fraction=-0.02), tick('missing', '#770077', fraction=0.02, legend='  Нет данных'),
+			tick('e_miss', '#770077', fraction=-0.02),
+				tick('e_miss', '#770077', fraction=0.02, legend='  Нет данных'),
 			tick('e_avg_min', '#0000FF', fraction=0.02, legend='  Возм. ошибки вниз'),
 			tick('e_avg_max', '#FF0000', fraction=-0.02, legend='  Возм. ошибки вверх\\n'),
 			'HRULE:0#007700::dashes',
@@ -50,6 +52,7 @@ class DiffGraph(FloatingPeriodGraph):
 			comment_notice_errors(self.arg_error),
 			
 			'LINE1:r_diff#00FF0033::skipscale',
+			# 'LINE1:f_diff#00FF00',
 			'LINE1:t_diff#337733',
 			
 			'LINE1:g_diff_min#000077:Наиб. падение\\t:dashes',

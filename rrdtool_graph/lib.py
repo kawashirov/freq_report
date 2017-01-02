@@ -57,7 +57,8 @@ def cdef_avg(to_vname, expr_list):
 	assert len(expr_list) > 0
 	return 'CDEF:{0}='.format(to_vname) + ','.join(expr_list + [str(len(expr_list)), 'AVG'])
 
-# Делает цепочку: expr,expr,f,expr,f, ..., expr,f
+# Делает цепочку: f(expr, f(expr, ... f(expr, expr) ... ))
+# Функция должна быть ассоциотивна
 def cdef_f_chain(to_vname, function, expr_list):
 	l = len(expr_list)
 	assert isinstance(expr_list, list)
@@ -68,12 +69,24 @@ def cdef_f_chain(to_vname, function, expr_list):
 		expr += ',' + str(var) + ',' + function
 	return expr
 
+# Вписать значение в перделы
 def cdef_fit(to_vname, from_vname, mn, mx, nan=False):
 	return 'CDEF:{0}={1},{3},MIN{4},{2},MAX{4}'.format(to_vname, from_vname, mn, mx, 'NAN' if nan else '')
 
-def cdef_trend(to_vname, from_vname, trend_window):
+# Отбросить значение, если оно не вписывается в пределы
+def cdef_drop(to_vname, from_vname, mn, mx):
+	mn_check = '{},{},LT'.format(from_vname, mn)
+	mx_check = '{},{},GT'.format(from_vname, mx)
+	sum_check = '{},{},+'.format(mn_check, mx_check)
+	return 'CDEF:{0}={1},UNKN,{2},IF'.format(to_vname, sum_check, from_vname)
+
+# 1 если один UNKNOWN, а другой нет, иначе 0
+def cdef_unknowness_ne(to_vname, expr_1, expr_2):
+	return 'CDEF:{0}={1},UN,{2},UN,NE'.format(to_vname, expr_1, expr_2)
+
+def cdef_trend(to_vname, from_vname, trend_window, nan=True):
 	return [
-		'CDEF:{0}={1},{2},TRENDNAN'.format(to_vname, from_vname, trend_window),
+		'CDEF:{0}={1},{2},TREND{3}'.format(to_vname, from_vname, trend_window, 'NAN' if nan else ''),
 		'SHIFT:{0}:{1}'.format(to_vname, trend_window // -2),
 	]
 
