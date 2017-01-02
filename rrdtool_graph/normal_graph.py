@@ -17,9 +17,9 @@ class NormalGraph(FloatingPeriodGraph):
 			'VDEF:g_min=r_min,{},PERCENTNAN'.format(self.arg_error),
 			'VDEF:g_max=r_max,{},PERCENTNAN'.format(100 - self.arg_error),
 			
-			cdef_drop('f_min', 'r_min', 'g_min', 'g_max'),
-			cdef_drop('f_max', 'r_max', 'g_min', 'g_max'),
-			cdef_drop('f_avg', 'r_avg', 'g_min', 'g_max'),
+			cdef('f_min', expr_drop('r_min', 'g_min', 'g_max')),
+			cdef('f_max', expr_drop('r_max', 'g_min', 'g_max')),
+			cdef('f_avg', expr_drop('r_avg', 'g_min', 'g_max')),
 			
 			cdef_trend('t_min', 'f_min', trend_window),
 			cdef_trend('t_max', 'f_max', trend_window),
@@ -29,10 +29,10 @@ class NormalGraph(FloatingPeriodGraph):
 			'VDEF:g_last=f_avg,LAST',
 			'VDEF:g_stdev=f_avg,STDEV',
 			
-			'CDEF:e_min=r_min,g_min,LT',
-			'CDEF:e_max=r_max,g_max,GT',
-			'CDEF:e_miss=r_avg,UN',
-			cdef_0tick('ztick', period, 'r_avg'),
+			cdef('e_min', 'r_min,g_min,LT'),
+			cdef('e_max', 'r_max,g_max,GT'),
+			cdef('e_miss', 'r_avg,UN'),
+			cdef('ztick', expr_0tick(period, 'r_avg')),
 			
 			'TEXTALIGN:left',
 			

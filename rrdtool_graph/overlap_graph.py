@@ -46,30 +46,28 @@ class OverlapGraph(AbstractGraph):
 			]
 
 		cmdline += [
-			cdef_f_chain('r_min', 'MINNAN', ['r_i{}_min'.format(x) for x in range(0, counts)]),
-			cdef_f_chain('r_max', 'MAXNAN', ['r_i{}_max'.format(x) for x in range(0, counts)]),
+			cdef('r_min', expr_f_chain('MINNAN', [ 'r_i{}_min'.format(x) for x in range(0, counts) ])),
+			cdef('r_max', expr_f_chain('MAXNAN', [ 'r_i{}_max'.format(x) for x in range(0, counts) ])),
 
 			'VDEF:g_min=r_min,{},PERCENTNAN'.format(self.arg_error),
 			'VDEF:g_max=r_max,{},PERCENTNAN'.format(100 - self.arg_error),
 
 			[[
-				# cdef_fit('f_i{}_min'.format(i), 'r_i{}_min'.format(i), 'g_min', 'g_max'),
-				# cdef_fit('f_i{}_max'.format(i), 'r_i{}_max'.format(i), 'g_min', 'g_max'),
-				cdef_fit('f_i{}_avg'.format(i), 'r_i{}_avg'.format(i), 'g_min', 'g_max'),
+				cdef('f_i{}_avg'.format(i), expr_drop('r_i{}_avg'.format(i), 'g_min', 'g_max')),
 				cdef_trend('t_i{}_avg'.format(i), 'f_i{}_avg'.format(i), trend_window),
 			] for i in range(0, counts) ],
 
-			cdef_avg('r_avg', ['r_i{}_avg'.format(i) for i in range(0, counts)]),
-			cdef_avg('f_avg', ['f_i{}_avg'.format(i) for i in range(0, counts)]),
-			cdef_avg('t_avg', ['t_i{}_avg'.format(i) for i in range(0, counts)]),
+			cdef('r_avg', expr_avg([ 'r_i{}_avg'.format(i) for i in range(0, counts) ])),
+			cdef('f_avg', expr_avg([ 'f_i{}_avg'.format(i) for i in range(0, counts) ])),
+			cdef('t_avg', expr_avg([ 't_i{}_avg'.format(i) for i in range(0, counts) ])),
 
 			'VDEF:g_avg=f_avg,AVERAGE',
 
-			'CDEF:e_min=r_min,g_min,LT',
-			'CDEF:e_max=r_max,g_max,GT',
-			'CDEF:e_miss_all=r_avg,UN',
-			cdef_f_chain('e_miss_some', '+', ['r_i{}_avg,UN'.format(x) for x in range(0, counts)]),
-			cdef_0tick('ztick', offset, 'r_i0_avg'),
+			cdef('e_min', 'r_min,g_min,LT'),
+			cdef('e_max', 'r_max,g_max,GT'),
+			cdef('e_miss_all', 'r_avg,UN'),
+			cdef('e_miss_some', expr_f_chain('+', [ 'r_i{}_avg,UN'.format(x) for x in range(0, counts) ])),
+			cdef('ztick', expr_0tick(offset, 'r_i0_avg')),
 			
 			'TEXTALIGN:left',
 

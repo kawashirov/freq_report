@@ -17,12 +17,10 @@ class DiffGraph(FloatingPeriodGraph):
 			'VDEF:g_min=r_min,{},PERCENTNAN'.format(self.arg_error),
 			'VDEF:g_max=r_max,{},PERCENTNAN'.format(100 - self.arg_error),
 			
-			# cdef_drop('f_min', 'r_min', 'g_min', 'g_max'),
-			# cdef_drop('f_max', 'r_max', 'g_min', 'g_max'),
-			cdef_drop('f_avg', 'r_avg', 'g_min', 'g_max'),
+			cdef('f_avg', expr_drop('r_avg', 'g_min', 'g_max')),
 
-			'CDEF:r_diff=r_avg,PREV(r_avg),-',
-			'CDEF:f_diff=f_avg,PREV(f_avg),-',
+			cdef('r_diff', 'r_avg,PREV(r_avg),-'),
+			cdef('f_diff', 'f_avg,PREV(f_avg),-'),
 			'VDEF:g_diff_min=f_diff,MINIMUM',
 			'VDEF:g_diff_max=f_diff,MAXIMUM',
 
@@ -30,10 +28,10 @@ class DiffGraph(FloatingPeriodGraph):
 			'VDEF:g_last=f_diff,LAST',
 			'VDEF:g_stdev=f_diff,STDEV',
 
-			'CDEF:e_avg_min=r_min,g_min,LT',
-			'CDEF:e_avg_max=r_max,g_max,GT',
-			'CDEF:e_miss=r_avg,UN',
-			cdef_0tick('ztick', period, 'r_avg'),
+			cdef('e_avg_min', 'r_min,g_min,LT'),
+			cdef('e_avg_max', 'r_max,g_max,GT'),
+			cdef('e_miss', 'r_avg,UN'),
+			cdef('ztick', expr_0tick(period, 'r_avg')),
 
 			'TEXTALIGN:left',
 

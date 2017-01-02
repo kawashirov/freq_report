@@ -8,6 +8,8 @@ LENGTH_WEEK = LENGTH_DAY * 7
 LENGTH_MONTH = LENGTH_DAY * 31
 LENGTH_YEAR = LENGTH_DAY * 365
 
+def is_list_or_tuple(obj):
+	return isinstance(obj, list) or isinstance(obj, tuple)
 
 def assert_t(arg, t):
 	assert isinstance(arg, t)
@@ -52,52 +54,72 @@ def comment_notice_errors(errors_percent):
 			.format(errors_percent)
 	),
 
-def cdef_avg(to_vname, expr_list):
+
+
+def expr_join(*expr_list):
+	return ','.join([ (
+		expr_join(*expr) if is_list_or_tuple(expr) else str(expr)
+	) for expr in expr_list ])
+
+def expr_avg(expr_list):
 	assert isinstance(expr_list, list)
 	assert len(expr_list) > 0
-	return 'CDEF:{0}='.format(to_vname) + ','.join(expr_list + [str(len(expr_list)), 'AVG'])
+	return expr_join(expr_list + [str(len(expr_list)), 'AVG'])
 
 # Делает цепочку: f(expr, f(expr, ... f(expr, expr) ... ))
 # Функция должна быть ассоциотивна
-def cdef_f_chain(to_vname, function, expr_list):
+def expr_f_chain(function, expr_list):
 	l = len(expr_list)
 	assert isinstance(expr_list, list)
 	assert l > 0
 	if l == 1: return expr_list[0]
-	expr = 'CDEF:' + to_vname + '=' + str(expr_list.pop(0))
+	expr = str(expr_list.pop(0))
 	for var in expr_list:
 		expr += ',' + str(var) + ',' + function
 	return expr
 
 # Вписать значение в перделы
-def cdef_fit(to_vname, from_vname, mn, mx, nan=False):
-	return 'CDEF:{0}={1},{3},MIN{4},{2},MAX{4}'.format(to_vname, from_vname, mn, mx, 'NAN' if nan else '')
+def expr_fit(from_vname, mn, mx, nan=False):
+	return expr_join(from_vname, mx, ('MINNAN' if nan else 'MIN'), mn, ('MAXNAN' if nan else 'MAX'))
 
 # Отбросить значение, если оно не вписывается в пределы
-def cdef_drop(to_vname, from_vname, mn, mx):
-	mn_check = '{},{},LT'.format(from_vname, mn)
-	mx_check = '{},{},GT'.format(from_vname, mx)
-	sum_check = '{},{},+'.format(mn_check, mx_check)
-	return 'CDEF:{0}={1},UNKN,{2},IF'.format(to_vname, sum_check, from_vname)
+def expr_drop(from_vname, mn, mx):
+	from_vname, mn, mx = str(from_vname), str(mn), str(mx)
+	return expr_join(
+		(
+			(from_vname, mn, 'LT'),
+			(from_vname, mx, 'GT'),
+			'+'
+		),
+		'UNKN',
+		from_vname,
+		'IF'
+	)
 
 # 1 если один UNKNOWN, а другой нет, иначе 0
-def cdef_unknowness_ne(to_vname, expr_1, expr_2):
-	return 'CDEF:{0}={1},UN,{2},UN,NE'.format(to_vname, expr_1, expr_2)
+def expr_unknowness_ne(to_vname, expr_1, expr_2):
+	return expr_join(expr_1, 'UN', expr_2, 'UN', 'NE')
 
-def cdef_trend(to_vname, from_vname, trend_window, nan=True):
-	return [
-		'CDEF:{0}={1},{2},TREND{3}'.format(to_vname, from_vname, trend_window, 'NAN' if nan else ''),
-		'SHIFT:{0}:{1}'.format(to_vname, trend_window // -2),
-	]
-
-def cdef_0tick(to_vname, function, dummy_vname):
+def expr_0tick(function, dummy_vname):
 	if isinstance(function, int):
 		if function >= LENGTH_YEAR: function = 'NEWYEAR'
 		elif function >= LENGTH_MONTH: function = 'NEWMONTH'
 		elif function >= LENGTH_WEEK: function = 'NEWWEEK'
 		else: function = 'NEWDAY'
 	assert isinstance(function, str), function
-	return 'CDEF:{0}={1},{2},POP'.format(to_vname, function, dummy_vname)
+	return expr_join(function, dummy_vname, 'POP')
+
+def cdef(to_vname, from_expr):
+	return 'CDEF:' + str(to_vname) + '=' + (expr_join(*from_expr) if is_list_or_tuple(from_expr) else str(from_expr))
+
+def vdef(to_vname, from_expr):
+	return 'VDEF:' + str(to_vname) + '=' + (expr_join(*from_expr) if is_list_or_tuple(from_expr) else str(from_expr))
+	
+def cdef_trend(to_vname, from_vname, trend_window, nan=True):
+	return [
+		cdef(to_vname, ( from_vname, trend_window, ('TRENDNAN' if nan else 'TREND') )),
+		'SHIFT:{0}:{1}'.format(to_vname, trend_window // -2),
+	]
 
 def tick(from_vname, color, fraction=None, legend=None):
 	s = 'TICK:' + from_vname + color
