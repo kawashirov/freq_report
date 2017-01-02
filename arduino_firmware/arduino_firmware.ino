@@ -1,21 +1,33 @@
 
-const int LED_PIN = 13;
-const int FREQ_PIN = 12;
+const int PIN_LED_SYS = 13;
+const int PIN_LED_INFO_COMMON = 3;
+const int PIN_LED_INFO_HI = 4;
+const int PIN_LED_INFO_LOW = 5;
+const int PIN_FREQ = 12;
+const unsigned int FREQ_TARGET = 50;
 const unsigned int FREQ_COUNTS = 1000;
 
 void setup() {
+	pinMode(PIN_FREQ, INPUT_PULLUP);
+	pinMode(PIN_LED_SYS, OUTPUT);
+	pinMode(PIN_LED_INFO_COMMON, OUTPUT);
+	pinMode(PIN_LED_INFO_HI, OUTPUT);
+	pinMode(PIN_LED_INFO_LOW, OUTPUT);
+	
+	digitalWrite(PIN_LED_SYS, LOW);
+	digitalWrite(PIN_LED_INFO_COMMON, LOW);
+	digitalWrite(PIN_LED_INFO_HI, LOW);
+	digitalWrite(PIN_LED_INFO_LOW, LOW);
+
 	Serial.begin(9600);
-	pinMode(FREQ_PIN, INPUT_PULLUP);
-	pinMode(LED_PIN, OUTPUT);
-	digitalWrite(LED_PIN, LOW);
 	// Ожидаем порт
 	while(!Serial);
 	// Ожидаем первого переключения - ждем пока прибор включат в розетку и ждем еще 100 мс, прежде чем начать.
-	digitalWrite(LED_PIN, HIGH);
-	int state = digitalRead(FREQ_PIN);
-	while(state == digitalRead(FREQ_PIN));
+	digitalWrite(PIN_LED_SYS, HIGH);
+	int state = digitalRead(PIN_FREQ);
+	while(state == digitalRead(PIN_FREQ));
 	delay(100);
-	digitalWrite(LED_PIN, LOW);
+	digitalWrite(PIN_LED_SYS, LOW);
 }
 
 void loop() {
@@ -25,9 +37,9 @@ void loop() {
 	boolean started = false;
 	// Цикл подсчета переключений
 	while(switch_counter > 0) {
-		int state = digitalRead(FREQ_PIN);
+		int state = digitalRead(PIN_FREQ);
 		// Ждем преключения стостояния
-		while(state == digitalRead(FREQ_PIN));
+		while(state == digitalRead(PIN_FREQ));
 		// При первом переключении начинаем отсчет
 		if (!started) {
 			start = micros();
@@ -39,10 +51,21 @@ void loop() {
 	elapsed =	micros() - start; 
 	
 	// Вывод данных, подсвечивается.
-	digitalWrite(LED_PIN, HIGH);
+	digitalWrite(PIN_LED_SYS, HIGH);
+	
 	// Частота. Деление на два т.к. в одном периоде два переключения состояния. Умножение на 1M - перевод в секунды.
 	double freq = ((double) 1000000) * FREQ_COUNTS / 2.0 / elapsed;
+
+	if (freq > FREQ_TARGET) {
+		digitalWrite(PIN_LED_INFO_HI, LOW);
+		digitalWrite(PIN_LED_INFO_LOW, HIGH);
+	} else {
+		digitalWrite(PIN_LED_INFO_HI, HIGH);
+		digitalWrite(PIN_LED_INFO_LOW, LOW);
+	}
+	
 	Serial.println(freq, 6);
 	Serial.flush();
-	digitalWrite(LED_PIN, LOW);
+	
+	digitalWrite(PIN_LED_SYS, LOW);
 }
