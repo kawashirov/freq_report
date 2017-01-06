@@ -12,7 +12,7 @@ def is_list_or_tuple(obj):
 	return isinstance(obj, list) or isinstance(obj, tuple)
 
 def assert_t(arg, t):
-	assert isinstance(arg, t)
+	assert isinstance(arg, t), (arg, t)
 	return arg
 
 def humanize_time(time):
@@ -105,7 +105,8 @@ def expr_0tick(function, dummy_vname):
 		if function >= LENGTH_YEAR: function = 'NEWYEAR'
 		elif function >= LENGTH_MONTH: function = 'NEWMONTH'
 		elif function >= LENGTH_WEEK: function = 'NEWWEEK'
-		else: function = 'NEWDAY'
+		elif function >= LENGTH_DAY: function = 'NEWDAY'
+		else: function = 'LTIME,' + str(LENGTH_HOUR) + ',%,0,EQ' # NEWHOUR
 	assert isinstance(function, str), function
 	return expr_join(function, dummy_vname, 'POP')
 
@@ -128,6 +129,12 @@ def tick(from_vname, color, fraction=None, legend=None):
 		if fraction is not None: s += str(fraction)
 		if legend is not None: s += ':' + esc_colon(legend)
 	return s
+
+def print_min(from_vname):
+	return 'PRINT:' + str(from_vname) + ':MIN\\:%le'
+
+def print_max(from_vname):
+	return 'PRINT:' + str(from_vname) + ':MAX\\:%le'
 
 def __color_unpack(color):
 	assert color.startswith('#'), color
@@ -170,6 +177,14 @@ def argtype_file(str_path):
 	# if not os.access(path, os.R_OK): raise argparse.ArgumentTypeError('Нет права на чтение {!r}.'.format(str(path)))
 	return str(path)
 
+def argtype_value_or_scale(str_arg):
+	if str_arg == 'auto':
+		return ( 'auto', None )
+	if str_arg.endswith('%'):
+		return ( 'scale', abs(float(str_arg[:-1])) / 100 )
+	else:
+		return ( 'value', int(str_arg) )
+
 def detect_length(arg_rrd, arg_start, arg_end):
 	cmdline = [
 		'rrdtool', 'graphv', os.devnull,
@@ -201,15 +216,48 @@ def detect_length(arg_rrd, arg_start, arg_end):
 	time = time_end - time_start
 	if time < 0: raise Exception('\'graph_end\' ({}) < \'graph_start\' ({})!'.format(time_end, time_start))
 
-	print('Обнаружена длина периода: {} сек'.format(time))
+	print('Обнаружена длина периода: {} сек'.format(time), file=sys.stderr)
 	return time
 
+def get_trend_window(period_length, trend_type):
+	trend_type, trend_value = trend_type
+	if trend_type == 'auto': return period_length // 60
+	if trend_type == 'scale': return period_length * trend_value
+	elif trend_type == 'value': return trend_value
+	else: assert False, self.arg_trend
+
+def detect_min_max(cmdline):
+	env = os.environ.copy()
+	env['LC_NUMERIC'] = 'en_US.UTF-8'
+	process = subprocess.Popen(cmdline, stdout=subprocess.PIPE, stderr=sys.stdout, env=env)
+
+	b_min, b_max = None, None
+
+	stdout = io.TextIOWrapper(process.stdout)
+	while True:
+		line = stdout.readline().strip()
+		if len(line) == 0: break
+		print('Линия: ', repr(line), file=sys.stderr)
+		try:
+			b_min = float(re.match(r'MIN:([0-9eE.,+-]+)', line).group(1).replace(',', '.'))
+			print('Определен min: ', repr(b_min), file=sys.stderr)
+		except Exception: pass
+		try:
+			b_max = float(re.match(r'MAX:([0-9eE.,+-]+)', line).group(1).replace(',', '.'))
+			print('Определен max: ', repr(b_max), file=sys.stderr)
+		except Exception: pass
+
+	if b_min is not None and b_max is not None:
+		assert b_max > b_min, (b_max, b_min)
+
+	return b_min, b_max
 
 class AbstractGraph(object):
 	def __init__(self):
 		super(AbstractGraph, self).__init__()
 		self._period_length = -1
 		self.argparse = argparse.ArgumentParser()
+		self.detect_min_max = False
 
 	def init_argparse(self):
 		self.argparse.add_argument('rrd', type=argtype_file,
@@ -218,8 +266,8 @@ class AbstractGraph(object):
 			help='Путь к целевому изображению (не проверяется).')
 
 		group = self.argparse.add_argument_group('Базовые опции')
-		group.add_argument('--trend', dest='trend', type=int, default=-1,
-			help='Ширина окна в секундах для расчета trend, значения <0 означают "автоматически", по умолчанию = -1')
+		group.add_argument('--trend', dest='trend', type=argtype_value_or_scale, default=('auto', None),
+			help='Ширина окна в секундах или процентах для расчета trend, по умолчанию = auto')
 		group.add_argument('--error', dest='error', type=float, default=0.5,
 			help='Какой объем в %% минимальных и максимальных данных считать ошибочными, по умолчанию = 0.5')
 		group.add_argument('--cmd', dest='cmd', action='store_true',
@@ -231,7 +279,7 @@ class AbstractGraph(object):
 		self.arg_rrd = assert_t(self.raw_args.rrd, str)
 		self.arg_image = assert_t(self.raw_args.image, str)
 		self.arg_cmd = assert_t(self.raw_args.cmd, bool)
-		self.arg_trend = assert_t(self.raw_args.trend, int)
+		self.arg_trend = assert_t(self.raw_args.trend, tuple)
 		self.arg_error = assert_t(self.raw_args.error, float)
 
 	def run(self):
@@ -239,29 +287,59 @@ class AbstractGraph(object):
 		self.raw_args = self.argparse.parse_args()
 		self.init_args()
 
-		cmdline = self.mk_cmdline()
-		cmdline = unpack_list(cmdline)
+		impl_cmdline = unpack_list(self.mk_cmdline())
+
+		limits_cmdline = []
+		if not self.arg_cmd and self.detect_min_max:
+			# Определение пределов
+			detection_cmdline = [
+				'rrdtool', 'graph', os.devnull,
+				'--width', '960', '--height', '384',
+				# '--pango-markup', '--tabwidth', '100',
+				# '--alt-y-grid',
+			] + impl_cmdline
+			b_min, b_max = detect_min_max(detection_cmdline)
+
+
+			if b_min is None and b_max is None:
+				print('Внимание! Запрошено определение пределов, но они не обнаружены.', file=sys.stderr)
+				limits_cmdline.append('--alt-autoscale')
+			else:
+				spread = 0
+				if b_min is not None and b_max is not None:
+					spread = (b_max - b_min) / 100.0
+					print('Коррекция пределов: ', repr(spread), file=sys.stderr)
+
+				limits_cmdline.append('--rigid')
+
+				if b_min is None: limits_cmdline.append('--alt-autoscale-min')
+				else: limits_cmdline += [ '--lower-limit', str(b_min - spread) ]
+
+				if b_max is None: limits_cmdline.append('--alt-autoscale-max')
+				else: limits_cmdline += [ '--upper-limit', str(b_max + spread) ]
+
+		production_cmdline = [
+			'rrdtool', 'graph', self.arg_image,
+			# TODO options
+			'--width', '960', '--height', '384', #'--full-size-mode',
+			'--pango-markup', '--tabwidth', '100',
+			'--alt-y-grid',
+			'--color', 'BACK#00000000',
+			'--color', 'SHADEA#00000000',
+			'--color', 'SHADEB#00000000',
+		] + limits_cmdline + impl_cmdline
 
 		if self.arg_cmd:
 			final_cmd = ''
-			for cmd_part in cmdline: final_cmd += '\'' + cmd_part.replace('\'','\'\\\'\'') + '\' '
-			print(final_cmd)
+			for cmd_part in production_cmdline:
+				final_cmd += '\'' + cmd_part.replace('\'','\'\\\'\'') + '\' '
+			print(final_cmd, file=sys.stderr)
 		else:
-			status = subprocess.run(cmdline, stdout=sys.stdout, stderr=sys.stderr)
-			print(status)
-
-
-	def base_cmdline(self):
-		return [
-			'rrdtool', 'graph', self.arg_image,
-			'--width', '960', '--height', '384', #'--full-size-mode',
-			'--pango-markup', '--tabwidth', '100',
-			'--alt-autoscale',
-			'--alt-y-grid',
-		]
+			status = subprocess.run(production_cmdline, stdout=sys.stdout, stderr=sys.stderr)
+			print(repr(status), file=sys.stderr)
 
 	def mk_cmdline(self):
-		raise Exception('ABSTRACT')
+		return []
 
 
 class FloatingPeriodGraph(AbstractGraph):
@@ -283,13 +361,14 @@ class FloatingPeriodGraph(AbstractGraph):
 		self.arg_start = assert_t(self.raw_args.start, str)
 		self.arg_end = assert_t(self.raw_args.end, str)
 
-	def base_cmdline(self):
-		return super().base_cmdline() + [ '--start', self.arg_start, '--end', self.arg_end ]
+	def mk_cmdline(self):
+		return [ '--start', self.arg_start, '--end', self.arg_end ]
 
 	def get_period_length(self):
 		if self.__period_length < 0: self.__period_length = detect_length(self.arg_rrd, self.arg_start, self.arg_end)
 		return self.__period_length
 
 	def get_trend_window(self):
-		if self.__trend_window < 0: self.__trend_window = self.get_period_length() // 100
+		if self.__trend_window < 0:
+			self.__trend_window = get_trend_window(self.get_period_length(), self.arg_trend)
 		return self.__trend_window

@@ -2,12 +2,15 @@
 from lib import *
 
 class NormalGraph(FloatingPeriodGraph):
+	def __init__(self):
+		super().__init__()
+		self.detect_min_max = True
 
 	def mk_cmdline(self):
 		period = self.get_period_length()
 		trend_window = self.get_trend_window()
 		trend_humanized = humanize_time(trend_window)
-		return self.base_cmdline() + [
+		return super().mk_cmdline() + [
 			'--title', 'Частота в сети, <b>{}</b>, Hz'.format(humanize_time(period)),
 			
 			'DEF:r_min={}:freq:MIN'.format(self.arg_rrd),
@@ -37,44 +40,48 @@ class NormalGraph(FloatingPeriodGraph):
 			'TEXTALIGN:left',
 			
 			comment('Маркеры:'),
+			tick('e_miss', '#BFBFBF', fraction=1, legend='  Нет данных'),
 			tick('ztick', '#FFFF00', fraction=1),
-			tick('e_miss', '#770077', fraction=-0.02),
-				tick('e_miss', '#770077', fraction=0.02, legend='  Нет данных'),
 			tick('e_min', '#0000FF', fraction=0.02, legend='  Возм. ошибки вниз'),
 			tick('e_max', '#FF0000', fraction=-0.02, legend='  Возм. ошибки вверх\\n'),
 			
 			comment_header('Пределы:', extra_text='(ГОСТ 32144-2013 4.2.1)'),
-			'HRULE:50#770077:Номинальное (50 Hz);:dashes',
+			'HRULE:50#7F007F:Номинальное (50 Hz);:dashes',
 			comment('Допуст. 100% времени (±0.4 Hz) и 95% времени (±0.2 Hz):'),
 			'HRULE:49.6#0000FF:Наим.:dashes',
 			'HRULE:49.8#0000FF::dashes',
-			'HRULE:50.2#FF0000:Наиб.\\n:dashes',
+			'HRULE:50.2#FF0000:Наиб.:dashes',
 			'HRULE:50.4#FF0000::dashes',
-			
+			comment('(Могут скрыться)\\n'),
+
 			comment_header(
 				'Измерения:',
-				extra_text='(Бледные - исходные данные, Яркие - тренд за {})'.format(trend_humanized)
+				extra_text='(Бледные - исходные данные, Яркие - тренд за {}, пунктир - за весь период)'.format(trend_humanized)
 			),
-			comment_notice_errors(self.arg_error),
 			
-			'LINE1:r_min#0000FF33::skipscale',
-			'LINE1:r_max#FF000033::skipscale',
-			'LINE1:r_avg#00FF0033::skipscale',
-			'LINE1:t_min#3333FF:Наим.\\t',
-			'LINE1:t_max#FF3333:Наиб.\\t',
-			'LINE1:t_avg#337733:Сред.\\n',
+			'LINE1:r_min#0000FF3F::skipscale',
+			'LINE1:r_max#FF00003F::skipscale',
+			'LINE1:r_avg#00FF003F::skipscale',
+			'LINE1:t_min#3F3FFF',
+			'LINE1:t_max#FF3F3F',
+			'LINE1:t_avg#3F773F',
 			
-			'LINE1:g_min#000077:(за период)\\t:dashes',
-			'LINE1:g_max#770000:(за период)\\t:dashes',
-			'LINE1:g_avg#007700:(за период)\\t:dashes:dash-offset=5',
-			'COMMENT:Последний\\t',
-			'COMMENT:Станд. откл.\\n',
+			'LINE1:g_min#00007F:↓Наим.\\t:dashes',
+			'LINE1:g_max#7F0000:↓Наиб.\\t:dashes',
+			'LINE1:g_avg#007F00:↓Сред.\\t:dashes:dash-offset=5',
+			'COMMENT:↓Последний\\t',
+			'COMMENT:↓Станд. откл.\\n',
 			
 			'GPRINT:g_min:%2.4lf %sHz\\t',
 			'GPRINT:g_max:%2.4lf %sHz\\t',
 			'GPRINT:g_avg:%2.4lf %sHz\\t',
 			'GPRINT:g_last:%2.4lf %sHz\\t',
 			'GPRINT:g_stdev:%2.4lf %sHz\\n',
+
+			comment_notice_errors(self.arg_error),
+
+			print_min('g_min'),
+			print_max('g_max'),
 		]
 
 
