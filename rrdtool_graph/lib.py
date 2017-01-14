@@ -84,19 +84,9 @@ def expr_fit(from_vname, mn, mx, nan=False):
 
 # Отбросить значение, если оно не вписывается в пределы
 def expr_drop(from_vname, mn, mx):
-	from_vname, mn, mx = str(from_vname), str(mn), str(mx)
-	return expr_join(
-		(
-			(from_vname, mn, 'LT'),
-			(from_vname, mx, 'GT'),
-			'+'
-		),
-		'UNKN',
-		from_vname,
-		'IF'
-	)
+	return expr_join(( str(from_vname), str(mn), str(mx), 'LIMIT' ))
 
-# 1 если один UNKNOWN, а другой нет, иначе 0
+# (1 == UN) != (2 == UN)
 def expr_unknowness_ne(to_vname, expr_1, expr_2):
 	return expr_join(expr_1, 'UN', expr_2, 'UN', 'NE')
 

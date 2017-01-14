@@ -82,7 +82,7 @@ class OverlapGraph(AbstractGraph):
 			tick('e_max', '#FF0000', fraction=-0.02, legend='  Возм. ошибки вверх\\n'),
 			
 			comment_header('Пределы:', extra_text='(ГОСТ 32144-2013 4.2.1)'),
-			'HRULE:50#770077:Номинальное (50 Hz);:dashes',
+			'HRULE:50#7F007F:Номинальное (50 Hz);:dashes',
 			comment('Допуст. 100% времени (±0.4 Hz) и 95% времени (±0.2 Hz):'),
 			'HRULE:49.6#0000FF:Наим.:dashes',
 			'HRULE:49.8#0000FF::dashes',

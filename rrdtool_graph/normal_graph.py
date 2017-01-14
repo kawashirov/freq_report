@@ -64,7 +64,7 @@ class NormalGraph(FloatingPeriodGraph):
 			'LINE1:r_avg#00FF003F::skipscale',
 			'LINE1:t_min#3F3FFF',
 			'LINE1:t_max#FF3F3F',
-			'LINE1:t_avg#3F773F',
+			'LINE1:t_avg#3F7F3F',
 			
 			'LINE1:g_min#00007F:↓Наим.\\t:dashes',
 			'LINE1:g_max#7F0000:↓Наиб.\\t:dashes',
