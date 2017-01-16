@@ -22,6 +22,9 @@ const int PIN_FREQ_B = 12;
 const unsigned int FREQ_TARGET = 50;
 const unsigned int FREQ_COUNTS = 500;
 
+unsigned long prev_time = 0;
+double prev_freq = 0.0;
+
 inline void wait_for_stable() {
 	// delay(1); // А надо ли?
 }
@@ -60,8 +63,7 @@ void setup() {
 
 void loop() {
 	unsigned int switch_counter = FREQ_COUNTS;
-	unsigned long start, elapsed;
-	boolean started = false;
+	unsigned long start, end, elapsed;
 	int a, b;
 
 	/* Первый этап: Синхронизация */
@@ -102,8 +104,10 @@ void loop() {
 	// Выход как и вход осуществляется в начале состояния I,
 	// по этому нет нужды в коррекциях - сразу же снимаем время
 
+	end = micros();
+
 	// Должно быть корректное время даже если micros < start, но не более раза.
-	elapsed =	micros() - start;
+	elapsed =	end - start;
 
 	/* Третий этап: вычисление и отсылка данных */
 
@@ -112,6 +116,17 @@ void loop() {
 	
 	// Частота. Умножение на 1M - перевод в секунды.
 	double freq = ((double) 1000000) * FREQ_COUNTS / elapsed;
+	double freq_var;
+
+	if (prev_time == 0) {
+		freq_var = 0.0;
+	} else {
+		// Умножение на 1M - перевод в секунды.
+		freq_var = abs(freq - prev_freq) * 1000000 / (end - prev_time);
+	}
+
+	prev_time = end;
+	prev_freq = freq;
 
 	if (freq > FREQ_TARGET) {
 		digitalWrite(PIN_LED_INFO_HI, LOW);
@@ -121,7 +136,15 @@ void loop() {
 		digitalWrite(PIN_LED_INFO_LOW, LOW);
 	}
 	
-	Serial.println(freq, 6);
+	// Формат rrdtool update: "значение:значение:..."
+	// dtostre - http://www.atmel.com/webdoc/AVRLibcReferenceManual/group__avr__stdlib_1ga6c140bdd3b9bd740a1490137317caa44.html
+	char str_temp[16];
+	dtostre(freq, str_temp, 6, 0);
+	Serial.print(str_temp);
+	Serial.print(F(":"));
+	dtostre(freq_var, str_temp, 6, 0);
+	Serial.print(str_temp);
+	Serial.print(F("\n"));
 	Serial.flush();
 	
 	digitalWrite(PIN_LED_SYS, LOW);

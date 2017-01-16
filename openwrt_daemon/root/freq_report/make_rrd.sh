@@ -2,6 +2,7 @@
 rrdtool create /root/freq_report/freq.rrd \
 	--step '10' \
 	'DS:freq:GAUGE:15:40:70' \
+	'DS:freq_var:GAUGE:15:U:U' \
 	'RRA:MIN:0.8:1:8640' \
 	'RRA:AVERAGE:0.9:1:8640' \
 	'RRA:MAX:0.9:1:8640' \
