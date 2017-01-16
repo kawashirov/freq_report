@@ -248,6 +248,8 @@ class AbstractGraph(object):
 		self._period_length = -1
 		self.argparse = argparse.ArgumentParser()
 		self.detect_min_max = False
+		self.force_min = False
+		self.force_max = False
 
 	def init_argparse(self):
 		self.argparse.add_argument('rrd', type=argtype_file,
@@ -281,22 +283,31 @@ class AbstractGraph(object):
 
 		limits_cmdline = []
 		if not self.arg_cmd and self.detect_min_max:
-			# Определение пределов
-			detection_cmdline = [
-				'rrdtool', 'graph', os.devnull,
-				'--width', '960', '--height', '384',
-				# '--pango-markup', '--tabwidth', '100',
-				# '--alt-y-grid',
-			] + impl_cmdline
-			b_min, b_max = detect_min_max(detection_cmdline)
+			b_min, b_max = None, None
 
+			# Если есть не форсированный предел, нужно его вычислить
+			if self.force_min is False or self.force_max is False:
+				detection_cmdline = [
+					'rrdtool', 'graph', os.devnull,
+					'--width', '960', '--height', '384',
+					# '--pango-markup', '--tabwidth', '100',
+					# '--alt-y-grid',
+				] + impl_cmdline
+				b_min, b_max = detect_min_max(detection_cmdline)
+				if b_min is None and b_max is None:
+					print('Внимание! Запрошено определение пределов, но они не обнаружены.', file=sys.stderr)
+
+			# Форсируем пределы
+			if type(self.force_min) is not bool: b_min = self.force_min
+			if type(self.force_max) is not bool: b_max = self.force_max
 
 			if b_min is None and b_max is None:
-				print('Внимание! Запрошено определение пределов, но они не обнаружены.', file=sys.stderr)
+				# Свободные пределы
 				limits_cmdline.append('--alt-autoscale')
 			else:
 				spread = 0
 				if b_min is not None and b_max is not None:
+					# Если имеются оба значения, увеличиваем на 1% снизу и сверху
 					spread = (b_max - b_min) / 100.0
 					print('Коррекция пределов: ', repr(spread), file=sys.stderr)
 
@@ -362,3 +373,28 @@ class FloatingPeriodGraph(AbstractGraph):
 		if self.__trend_window < 0:
 			self.__trend_window = get_trend_window(self.get_period_length(), self.arg_trend)
 		return self.__trend_window
+
+class OverlapGraph(AbstractGraph):
+	def __init__(self):
+		super().__init__()
+		self.default_width = LENGTH_DAY
+		self.default_depth = 7
+
+	def init_argparse(self):
+		super().init_argparse()
+		group = self.argparse.add_argument_group('Опции выбора интервала')
+		group.add_argument('--width', dest='width', type=int, default=self.default_width,
+			help='Ширина анализируемого интервала в секундах, по умолчанию = {}'.format(self.default_width))
+		group.add_argument('--depth', dest='depth', type=int, default=self.default_depth,
+			help='Число анализируемых интервалов, по умолчанию = {}'.format(self.default_depth))
+		group.add_argument('--end', dest='end', type=str, default='now',
+			help='Аналогичен --end из rrdtool, по умолчанию = now')
+
+	def init_args(self):
+		super().init_args()
+		self.arg_width = assert_t(self.raw_args.width, int)
+		self.arg_depth = assert_t(self.raw_args.depth, int)
+		self.arg_end = assert_t(self.raw_args.end, str)
+
+	def mk_cmdline(self):
+		return [ '--start', 'end-'+ str(self.arg_width), '--end', self.arg_end ]

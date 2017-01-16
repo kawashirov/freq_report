@@ -59,9 +59,9 @@ class NormalGraph(FloatingPeriodGraph):
 				extra_text='(Бледные - исходные данные, Яркие - тренд за {}, пунктир - за весь период)'.format(trend_humanized)
 			),
 			
-			'LINE1:r_min#0000FF3F::skipscale',
-			'LINE1:r_max#FF00003F::skipscale',
-			'LINE1:r_avg#00FF003F::skipscale',
+			'LINE1:r_min#0000FF1F::skipscale',
+			'LINE1:r_max#FF00001F::skipscale',
+			'LINE1:r_avg#00FF001F::skipscale',
 			'LINE1:t_min#3F3FFF',
 			'LINE1:t_max#FF3F3F',
 			'LINE1:t_avg#3F7F3F',
